@@ -15,8 +15,18 @@ class TutBy:
         html = html.find("div", attrs={"id": "content-band"})
         html = html.find("div", attrs={"class": "l-columns"})
         b_news = html.find_all("div", attrs={"class": "b-news"})
-        print(len(b_news))
 
+        for b_newss in b_news:
+            title = b_newss.find("div",class_="rubric-title").find("a",class_="rubric-title__link").get_text()
+       
+        url = b_newss.find("div",class_="news-section").find_all("a") 
+        links = []
+        for urll in url:
+            links.append(urll.get("href"))
+        
+        output_dict = {title:links}
+        print(output_dict)
+        
     def parse(self):
         pass
 
@@ -41,7 +51,7 @@ class TutBy:
 
 
 if __name__ == "__main__":
-    tut = TutBy("20.09.2020")
+    tut = TutBy("05.09.2020")
     # tut.parse()
     # for news in tut:
     #     print(news)
