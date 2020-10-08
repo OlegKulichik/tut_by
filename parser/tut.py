@@ -18,8 +18,8 @@ class TutBy:
 
         for b_newss in b_news:
             title = b_newss.find("div",class_="rubric-title").find("a",class_="rubric-title__link").get_text()
+            url = b_newss.find("div",class_="news-section").find_all("a") 
        
-        url = b_newss.find("div",class_="news-section").find_all("a") 
         links = []
         for urll in url:
             links.append(urll.get("href"))
