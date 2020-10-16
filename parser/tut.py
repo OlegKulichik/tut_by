@@ -1,34 +1,88 @@
 import requests
+import threading
 from bs4 import BeautifulSoup as BS
+from concurrent.futures import ThreadPoolExecutor
+import json
 
-#content-band > div.col-c > div > div.col-w > div.l-columns.air-30
+
 class TutBy:
     __url = "https://news.tut.by/archive/{}.html"
 
     def __init__(self, date: str):
-        self.__news = {}
+        self.__news = []
+        self.__rubrics = {}
         self.__date = date
 
-    def get_page(self):
+    @staticmethod
+    def _get_news(url, result):
+        try:
+            result.append(requests.get(url).text)
+        except Exception:
+            pass
+
+    @staticmethod
+    def _get_news_pool(url):
+        return requests.get(url).text
+
+    def _run_load_news(self, urls):
+        results = []
+        threads = [
+            threading.Thread(target=self._get_news, args=(url, results)) for url in urls
+        ]
+        _ = [worker.start() for worker in threads]
+        _ = [worker.join() for worker in threads]
+        return results
+
+    def _run_load_news_pool(self, urls):
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            results = executor.map(self._get_news_pool, urls)
+            return results
+        return []
+
+    def get_rubrics(self):
         root_page = requests.get(self.__url.format(self.__date))
         html = BS(root_page.text, features="html5lib")
         html = html.find("div", attrs={"id": "content-band"})
         html = html.find("div", attrs={"class": "l-columns"})
         b_news = html.find_all("div", attrs={"class": "b-news"})
+        for rubric in b_news:
+            head_rubric = rubric.find("div", attrs={"class": "rubric-title"})
+            rubric_name = head_rubric.text
+            self.__rubrics[rubric_name] = []
+            rubric_news = rubric.find_all("div", attrs={"class": "news-entry"})
+            for r_news in rubric_news:
+                a = r_news.find("a", attrs={"class": "entry__link"})
+                self.__rubrics[rubric_name].append(a.attrs["href"])
+        return self.__rubrics
 
-        for b_newss in b_news:
-            title = b_newss.find("div",class_="rubric-title").find("a",class_="rubric-title__link").get_text()
-            url = b_newss.find("div",class_="news-section").find_all("a") 
-       
-        links = []
-        for urll in url:
-            links.append(urll.get("href"))
-        
-        output_dict = {title:links}
-        print(output_dict)
-        
-    def parse(self):
-        pass
+
+    @staticmethod
+    def _parse_news(html_text):
+        html = BS(html_text, features="html5lib")
+        head = html.find("div", attrs={"class": "m_header"})
+        if head is not None:
+            head = head.get_text()
+        news_body = html.find("div", attrs={"id": "article_body"})
+        if news_body is not None:
+            news_body = news_body.find_all("p")
+        ss = []
+        for p in news_body or []:
+            ss.append(p.get_text())
+        text = "".join(ss)
+        return head, text.replace("\xa0", " ").replace("&nbsp;", " ")
+
+    def get_news(self):
+        news = [
+            {"rubric": rubric, "texts": self._run_load_news_pool(links)}
+            for rubric, links in self.__rubrics.items()
+        ]
+        for n in news:
+            record = {"rubric": n["rubric"], "news": []}
+            for text in n["texts"]:
+                head, text = self._parse_news(text)
+                record["news"].append({"head": head, "text": text}) 
+            self.__news.append(record)
+        return self.__news
 
     def __iter__(self):
         self.__cursor = 0
@@ -51,8 +105,9 @@ class TutBy:
 
 
 if __name__ == "__main__":
-    tut = TutBy("05.09.2020")
+    tut = TutBy("14.10.2020")
     # tut.parse()
     # for news in tut:
     #     print(news)
-    tut.get_page()
+    # tut.get_rubrics()
+    # print(tut.get_news())
