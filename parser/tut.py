@@ -2,7 +2,6 @@ import requests
 import threading
 from bs4 import BeautifulSoup as BS
 from concurrent.futures import ThreadPoolExecutor
-import json
 
 
 class TutBy:
@@ -53,23 +52,23 @@ class TutBy:
             for r_news in rubric_news:
                 a = r_news.find("a", attrs={"class": "entry__link"})
                 self.__rubrics[rubric_name].append(a.attrs["href"])
-        return self.__rubrics
-
 
     @staticmethod
     def _parse_news(html_text):
         html = BS(html_text, features="html5lib")
+        link = html.find("div", attrs={"data-role" : "share-block"}).get('data-href')
         head = html.find("div", attrs={"class": "m_header"})
-        if head is not None:
-            head = head.get_text()
         news_body = html.find("div", attrs={"id": "article_body"})
-        if news_body is not None:
-            news_body = news_body.find_all("p")
-        ss = []
-        for p in news_body or []:
-            ss.append(p.get_text())
-        text = "".join(ss)
-        return head, text.replace("\xa0", " ").replace("&nbsp;", " ")
+        news_p = news_body.find_all("p")
+        text = "".join([p.get_text() for p in news_p])
+        text = text.replace("\xa0", " ").replace("&nbsp;", " ").replace("'", " ")
+        head = head.get_text()
+        # if head is not None:
+        #     head = head.get_text()
+        # else:
+        #     head = text.split(".")[0]
+        return head, text, link
+
 
     def get_news(self):
         news = [
@@ -77,12 +76,15 @@ class TutBy:
             for rubric, links in self.__rubrics.items()
         ]
         for n in news:
-            record = {"rubric": n["rubric"], "news": []}
+            record = {"rubric": n["rubric"], "news": [] }
             for text in n["texts"]:
-                head, text = self._parse_news(text)
-                record["news"].append({"head": head, "text": text}) 
+                try:
+                    head, text, link = self._parse_news(text)
+                except AttributeError:
+                    continue
+                record["news"].append({"head": head, "link": link, "text": text}) 
             self.__news.append(record)
-        return self.__news
+        # self.__news[0].keys())
 
     def __iter__(self):
         self.__cursor = 0
@@ -105,9 +107,9 @@ class TutBy:
 
 
 if __name__ == "__main__":
-    tut = TutBy("14.10.2020")
+    tut = TutBy("24.10.2020")
     # tut.parse()
     # for news in tut:
     #     print(news)
-    # tut.get_rubrics()
-    # print(tut.get_news())
+    tut.get_rubrics()
+    tut.get_news()
